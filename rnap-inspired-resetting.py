@@ -1,154 +1,172 @@
 import numpy as np 
 import random
 
-# Hopping function--------------------------------------------------------------
+
+# =============================================================================
+# Hopping function
+# =============================================================================
 def hopping(pos, case, bias_factor):
 
   """
-  Simulates a random walk (hop) with stochastic resetting. 
+  Simulates a single step (hop) of a 1-D random walk with optional bias.
 
   Inputs:
+   pos:          current position of the particle
+   case:         type of hopping rule
+                 ('unbiased_hop', 'forward_biased_hop', 'backward_biased_hop')
+   bias_factor:  controls the difference in probabilities between forward
+                 and backward hopping
 
-   pos:                   current position of the particle
-   case:                  unbiased_hop/forward_biased_hop/backward_biased_hop
-   bias_factor:           difference in probabilities associated with forward 
-                          and backward hopping
   Returns:
-
-    pos:                  position of the particle after one hop has commenced
-
+   pos:          updated position of the particle after the hop
   """
 
+  # Define weights controlling hopping probabilities.
+  # The base probability is 50/50; bias_factor shifts probability weight.
   w_1 = 50 + bias_factor
   w_2 = 50 - bias_factor
 
   if str(case) == 'forward_biased_hop':
 
-    # initializes 1-D array that consists of -1s and 1s. A forward bias entails 
-    # more -1s and a higher chance of hopping towards the recovered state.
+    # Creates a stochastic step chosen from {-1, +1}.
+    # A forward bias means higher probability for -1,
+    # which moves the particle toward the recovered state (position 0).
     dpos = random.choices([-1, 1], weights = [w_1, w_2], k=1)
 
   elif str(case) == 'backward_biased_hop':
 
-    # initializes 1-D array that consists of -1s and 1s. A backward bias entails 
-    # more +1s and a higher chance of hopping away from the recovered state.
+    # Backward bias increases probability of +1,
+    # meaning the particle is more likely to move away from recovery.
     dpos = random.choices([-1, 1], weights = [w_2, w_1], k=1)
 
   else:
 
-    # initializes 1-D array that consists of -1s and 1s. No bias entails 
-    # an equal number of + and - 1s and equal chances of forward and 
-    # backward hopping.
+    # Unbiased hopping: equal probability of stepping left or right.
     dpos = random.choices([-1, 1], weights = [50, 50], k=1)
     
+  # Update particle position
   pos += dpos[0]
 
   return pos
 
-# Resetting function ------------------------------------------------------------
 
+# =============================================================================
+# Resetting function
+# =============================================================================
 def resetting(pos, resetting_probability):
 
   """
-  Simulates the choice of resetting. 
+  Simulates the stochastic resetting decision.
+
+  When the particle is inside the resetting region, it can either:
+   • reset to the recovery state
+   • remain in its current position
 
   Inputs:
+   pos:                    current particle position
+   resetting_probability:  probability of resetting when in resetting region
 
-   pos:                   current position of the particle
-   case:                  unbiased_hop/forward_biased_hop/backward_biased_hop
-   resetting_probability:  probability of resetting when particle is within 
-                          resetting region
   Returns:
-
-    pos:                  position of the particle after the choice of whether
-                          or not to reset has commenced
-
+   pos:                    updated particle position
   """
+
+  # Convert probability into percentage weight for random.choices()
   p_c = resetting_probability*100
 
-  # initializes 1-D array that consists of -pos+1 and 0, which results in either
-  # pos = -1 (recovery via resetting) or in no change in pos. 
+  # Random choice:
+  # -(pos+1) moves the particle to position -1 (reset event)
+  # 0 means the particle remains where it is
   dpos = random.choices([-(pos+1), 0], weights = [p_c, 100-p_c], k=1)
 
+  # Apply change in position
   pos += dpos[0]
+
   return pos
 
-  # Note: While position of recovery is technically zero, we momentarily set it
-  # to -1 to distinguish between trajectories that recover via hopping and those
-  # that do so via resetting.
+  # NOTE:
+  # Recovery position is technically 0.
+  # However, resetting sets position to -1 temporarily so that the
+  # simulation can distinguish between:
+  #   - recovery via hopping (pos = 0)
+  #   - recovery via resetting (pos = -1)
 
-# Trajectories -----------------------------------------------------------------
 
+# =============================================================================
+# Trajectory simulation
+# =============================================================================
 def return_trajectories(case, bias_factor, resetting_probability, start, 
                         steps, reset_region, mcs, filename):
 
   """
-  Simulates particle trajectories for different cases of random walk and 
-  resetting. 
+  Simulates multiple particle trajectories using Monte Carlo simulations.
+
+  Each trajectory represents a random walk with possible resetting.
 
   Inputs:
-
-   case:                  unbiased_hop/forward_biased_hop/backward_biased_hop
-   bias_factor:           difference in probabilities associated with forward 
-                          and backward hopping
-   resetting_probability:  probability of resetting when particle is within 
-                          resetting region
-   start:                 initial position of the particle
-   steps:                 maximum number of steps of random walk/resetting
-   reset_region:          maximum position from which resetting can occur
+   case:                  hopping rule
+   bias_factor:           controls hopping bias
+   resetting_probability: probability of resetting in reset region
+   start:                 initial particle position
+   steps:                 maximum number of simulation steps
+   reset_region:          maximum position where resetting can occur
    mcs:                   number of Monte Carlo simulations
+   filename:              file name to save trajectories
 
   Returns:
-
-    trajectories:         array containing the position of the particle at
-                          each timepoint for each Monte Carlo simulation
-
+   trajectories:          matrix containing particle position at each time
+                          step for each Monte Carlo simulation
   """
 
-  # Initializes data matrices
+  # Initialize matrix storing trajectories
+  # Rows = Monte Carlo runs
+  # Columns = time steps
   trajectories = np.zeros([mcs, steps+1], int)
 
-  # Performs indicated number of Monte Carlo Simulations 
+  # Loop over Monte Carlo simulations
   for j in range(mcs):
 
-    # Sets position of particle to indicated starting point
+    # Set initial position
     pos = start
     trajectories[j,0] = pos
     
     
-    # Performs random walk until indicated number of steps
+    # Begin time evolution of the random walk
     i = 1
     while i < steps+1:
 
-      # If within resetting region, position is either set to 0 or unchanged.
+      # If particle is inside resetting region
       if pos <= reset_region:
+
+        # Decide whether resetting occurs
         pos = resetting(pos, resetting_probability)
         trajectories[j,i] = pos
 
-        # If position resets, perform a new mcs. 
+        # If resetting occurred (pos <= 0), trajectory ends
         if pos <= 0:
           break
 
-        # If position is unchanged, proceed with hopping function.
+        # Otherwise continue with hopping
         else: pass
 
-      # If position is beyond resetting region, proceed with hopping function.
+      # If particle is outside resetting region, skip resetting
       else: pass
 
-      # Position is either moved 1 step to the right or 1 step to the left.
+      # Perform hopping step
       pos = hopping(pos, case, bias_factor)
       trajectories[j,i] = pos
 
-      # If position reaches 0, perform a new mcs.
+      # If recovery state is reached
       if pos <= 0:
           i += 1
           break
 
-      # If position is not 0, continue with random walk 
+      # Otherwise continue the walk
       else: pass
       i+= 1
 
-  # Records trajectories
+  # --------------------------------------------------------------------------
+  # Save trajectories to CSV file
+  # --------------------------------------------------------------------------
 
   Filepath = "" 
   + str(filename) + str(".csv")
@@ -157,119 +175,118 @@ def return_trajectories(case, bias_factor, resetting_probability, start,
 
   return trajectories
 
-# Recovery times ---------------------------------------------------------------
 
+# =============================================================================
+# Recovery time calculation
+# =============================================================================
 def return_recovery_time(single_traj, reset_duration, h):
 
   """
-  Computes recovery time given a single trajectory.
+  Computes recovery time from a single trajectory.
 
   Inputs:
-
-   single_traj:           1xN array containing a single particle trajectory
-                          within the observation time (i.e., each row of 
-                          the output of the function, return_trajectories())
-   reset_duration:        duration of each instance of resetting
-   h:                     duration of each hop
+   single_traj:      array containing particle positions through time
+   reset_duration:   duration associated with a resetting event
+   h:                time duration associated with each hop
 
   Returns:
-
-    recovery time:        no. of time steps until particle reaches pos = 0
-                          
-
+   recovery_time:    time required for the particle to reach recovery
+                     state (position 0)
   """
 
   recovery_time = 0
 
-  # calculate recovery time
+  # Iterate through trajectory positions
   for i in range(1, len(single_traj)):
     
+    # Recovery via resetting
     if single_traj[i] == -1: 
       recovery_time = (i-1)/h + reset_duration
       break
       
+    # Recovery via hopping
     elif single_traj[i] == 0:
       recovery_time = i/h
       break
       
     else: 
-
       pass
 
   return recovery_time
 
-# Mean recovery times ----------------------------------------------------------
 
+# =============================================================================
+# Mean recovery time (MRT)
+# =============================================================================
 def return_mrt(case, bias_factor, resetting_probability, start, steps, 
                reset_region, mcs, reset_duration, h):
 
   """
-  Simulates particle trajectories for different cases of random walk and 
-  resetting. Calculates and returns conditional mean recovery time over
-  indicated number of Monte Carlo Simulations.
+  Computes the conditional Mean Recovery Time (MRT) using Monte Carlo
+  simulations of the stochastic walk with resetting.
 
   Inputs:
-
-   case:                  unbiased_hop/forward_biased_hop/backward_biased_hop
-   bias_factor:           difference in probabilities associated with forward 
-                          and backward hopping
-   resetting_probability:  probability of resetting when particle is within 
-                          resetting region
-   start:                 initial position of the particle
-   steps:                 maximum number of steps of random walk/resetting
-   reset_region:          maximum position from which resetting can occur
-   mcs_steps:             number of Monte Carlo simulations
+   case:                  hopping rule
+   bias_factor:           hopping bias strength
+   resetting_probability: resetting probability inside reset region
+   start:                 initial particle position
+   steps:                 maximum simulation length
+   reset_region:          region where resetting is allowed
+   mcs:                   number of Monte Carlo simulations
+   reset_duration:        time cost of resetting
+   h:                     time duration of each hop
 
   Returns:
-
-    conditional mean 
-    recovery time:        average recovery time (given recovery) over 
-                          indicated number of Monte Carlo simulations 
-                          
-
+   conditional_mrt:       mean recovery time conditioned on successful
+                          recovery events
   """
 
+  # Array to store recovery time from each simulation
   recovery_time = np.zeros(mcs)
 
-  # Performs indicated number of Monte Carlo Simulations 
+  # Loop through Monte Carlo runs
   for j in range(mcs):
 
-    # Sets position of particle to indicated starting point
+    # Initialize position
     pos = start
     
-    # Performs random walk until indicated number of steps
+    # Simulate trajectory
     i = 1
     while i < steps+1:
 
-      # If within resetting region, position is either set to 0 or unchanged.
+      # If inside resetting region
       if pos <= reset_region:
+
+        # Attempt resetting
         pos = resetting(pos, resetting_probability)
         
-        # If position resets, perform a new mcs. 
+        # If reset occurred
         if pos <= 0:
           recovery_time[j] = (i-1)/h + reset_duration
           break
 
-        # If position is unchanged, proceed with hopping function.
         else: pass
 
-      # If position is beyond resetting region, proceed with hopping function.
+      # If outside reset region
       else: pass
 
-      # Position is either moved 1 step to the right or 1 step to the left.
+      # Perform hopping step
       pos = hopping(pos, case, bias_factor)
 
-      # If position reaches 0, perform a new mcs.
+      # Check if recovery state reached
       if pos <= 0:
           i += 1
           recovery_time[j] = i/h
           break
 
-      # If position is not 0, continue with random walk 
       else: pass
       i+= 1
 
   # ----------------------------------------------------------------------
+  # Compute conditional mean recovery time
+  # (exclude simulations where recovery did not occur)
+  # ----------------------------------------------------------------------
+
   conditional_mrt = np.mean(recovery_time[recovery_time !=0 ])
 
   return conditional_mrt
