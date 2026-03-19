@@ -1,2 +1,2 @@
 # Truncated-Stochastic-Resetting
-Python functions for simulating truncated stochastic resetting processes
+This repository contains code developed to study stochastic resetting processes with biologically motivated truncations with Monte Carlo simulations.
